@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KernelGreedyMIS Visualizer</title>
+  <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+    h2 { color: #333; margin-bottom: 5px; }
+    
+    /* Stats Panel Styling */
+    .stats-panel {
+      display: flex;
+      gap: 30px;
+      margin-bottom: 15px;
+      background: white;
+      padding: 10px 25px;
+      border-radius: 50px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      font-weight: bold;
+      color: #444;
+    }
+    .stat-val { color: #007bff; font-size: 1.2em; margin-left: 5px; }
+
+    #container { width: 800px; height: 500px; border: 1px solid #ddd; border-radius: 8px; background-color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .controls { margin-top: 20px; display: flex; gap: 10px; }
+    button { padding: 10px 20px; font-size: 16px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 5px; transition: background 0.3s; }
+    button:hover { background-color: #0056b3; }
+    button:disabled { background-color: #ccc; cursor: not-allowed; }
+    #status { margin-top: 15px; font-weight: bold; font-size: 18px; color: #555; height: 30px; }
+    .legend { display: flex; gap: 15px; margin-top: 10px; font-size: 14px; }
+    .dot { width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 5px; }
+  </style>
+</head>
+<body>
+
+  <h2>KernelGreedyMIS Pipeline</h2>
+  
+  <div class="stats-panel">
+    <span>Graph Size (|V|): <span id="val-size" class="stat-val">0</span></span>
+    <span>Current MIS Size: <span id="val-mis" class="stat-val">0</span></span>
+  </div>
+
+  <div id="status">Ready to start...</div>
+  
+  <div id="container"></div>
+
+  <div class="legend">
+    <span><span class="dot" style="background:#d3d3d3;"></span>Unprocessed</span>
+    <span><span class="dot" style="background:#FFD700;"></span>Active (Scanning)</span>
+    <span><span class="dot" style="background:#32CD32;"></span>Selected (In Set)</span>
+    <span><span class="dot" style="background:#FF6347;"></span>Removed (Neighbor)</span>
+  </div>
+
+  <div class="controls">
+    <button id="btnStart" onclick="startAnimation()">Start Animation</button>
+    <button id="btnReset" onclick="resetGraph()">Reset</button>
+  </div>
+
+<script>
+  // --- CONFIGURATION ---
+  const COLORS = {
+    unprocessed: '#d3d3d3',
+    active: '#FFD700',
+    selected: '#32CD32',
+    removed: '#FF6347',
+    border: '#2B2B2B'
+  };
+
+  const NODES = [
+    { id: 'A', label: 'A' }, // Rule 1
+    { id: 'B', label: 'B' }, { id: 'C', label: 'C' }, { id: 'D', label: 'D' }, { id: 'E', label: 'E' }, // Rule 2
+    { id: 'F', label: 'F' }, { id: 'G', label: 'G' }, { id: 'H', label: 'H' }, { id: 'I', label: 'I' }, // Rule 3
+    { id: 'J', label: 'J' }, { id: 'K', label: 'K' }, { id: 'L', label: 'L' } // Greedy
+  ];
+
+  const EDGES = [
+    // Rule 2 Cluster
+    { from: 'B', to: 'C' }, { from: 'C', to: 'D' }, { from: 'C', to: 'E' },
+    // Rule 3 Cluster
+    { from: 'F', to: 'G' }, { from: 'F', to: 'H' }, { from: 'G', to: 'H' }, { from: 'H', to: 'I' },
+    // Greedy Path
+    { from: 'I', to: 'J' }, { from: 'J', to: 'K' }, { from: 'K', to: 'L' }, { from: 'L', to: 'I' }
+  ];
+
+  let network = null;
+  let nodesDataSet = new vis.DataSet(NODES);
+  let edgesDataSet = new vis.DataSet(EDGES);
+  let misCounter = 0;
+
+  // Initialize Network
+  function init() {
+    const container = document.getElementById('container');
+    const data = { nodes: nodesDataSet, edges: edgesDataSet };
+    const options = {
+      nodes: { shape: 'dot', size: 25, font: { size: 18, color: '#000' }, color: { background: COLORS.unprocessed, border: COLORS.border } },
+      edges: { width: 2, color: '#999' },
+      physics: { enabled: true, stabilization: { iterations: 200 } }
+    };
+    network = new vis.Network(container, data, options);
+    
+    // Set Initial Stats
+    document.getElementById('val-size').innerText = NODES.length;
+    document.getElementById('val-mis').innerText = "0";
+  }
+
+  // --- ANIMATION LOGIC ---
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  
+  async function updateNode(id, colorType, message) {
+    nodesDataSet.update({ id: id, color: { background: COLORS[colorType] } });
+    
+    // Update Stats if a node is selected
+    if(colorType === 'selected') {
+      misCounter++;
+      document.getElementById('val-mis').innerText = misCounter;
+    }
+
+    if(message) document.getElementById('status').innerText = message;
+    await sleep(1500); 
+  }
+
+  async function startAnimation() {
+    document.getElementById('btnStart').disabled = true;
+    
+    // --- STAGE 1: KERNELIZATION ---
+    
+    // Rule 1: Degree 0
+    await updateNode('A', 'active', "Stage 1 (Rule 1): Detecting isolated node 'A'");
+    await updateNode('A', 'selected', "Node 'A' added to Independent Set.");
+
+    // Rule 2: Degree 1
+    await updateNode('B', 'active', "Stage 1 (Rule 2): Detecting pendant node 'B'");
+    nodesDataSet.update({ id: 'C', color: { background: COLORS.removed } }); // Remove neighbor
+    await updateNode('B', 'selected', "Selected 'B'. Removed neighbor 'C'.");
+
+    // Rule 3: Triangle
+    await updateNode('F', 'active', "Stage 1 (Rule 3): Detecting triangle node 'F'");
+    nodesDataSet.update([{ id: 'G', color: { background: COLORS.removed } }, { id: 'H', color: { background: COLORS.removed } }]);
+    await updateNode('F', 'selected', "Selected 'F'. Removed neighbors 'G' & 'H'.");
+
+    // --- STAGE 2: GREEDY ---
+    document.getElementById('status').innerText = "Stage 2: Switching to Min-Degree Greedy...";
+    await sleep(2000);
+
+    // Remaining isolated nodes from C's removal
+    await updateNode('D', 'selected', "Greedy: 'D' is now isolated. Selected.");
+    await updateNode('E', 'selected', "Greedy: 'E' is now isolated. Selected.");
+
+    // Loop J-K-L-I processing
+    await updateNode('I', 'active', "Greedy: 'I' has min degree in remaining graph.");
+    nodesDataSet.update([{ id: 'J', color: { background: COLORS.removed } }, { id: 'L', color: { background: COLORS.removed } }]);
+    await updateNode('I', 'selected', "Selected 'I'. Removed neighbors 'J' & 'L'.");
+
+    // Final Node
+    await updateNode('K', 'active', "Greedy: Only 'K' remains.");
+    await updateNode('K', 'selected', "Pipeline Complete! Maximum Independent Set Found.");
+    
+    document.getElementById('btnStart').disabled = false;
+  }
+
+  function resetGraph() {
+    nodesDataSet.clear();
+    edgesDataSet.clear();
+    nodesDataSet.add(NODES.map(n => ({...n, color: { background: COLORS.unprocessed }})));
+    edgesDataSet.add(EDGES);
+    
+    // Reset Stats
+    misCounter = 0;
+    document.getElementById('val-mis').innerText = "0";
+    document.getElementById('status').innerText = "Ready to start...";
+    
+    network.fit(); // Reset zoom
+  }
+
+  // Initialize on load
+  window.onload = init;
+</script>
+
+</body>
+</html>
