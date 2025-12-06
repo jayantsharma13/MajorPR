@@ -6,81 +6,163 @@
   <title>KernelGreedyMIS Visualizer</title>
   <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
   <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-    h2 { color: #333; margin-bottom: 5px; }
-    
-    /* Stats Panel Styling */
+    /* DARK THEME & RESPONSIVE CSS */
+    :root {
+      --bg-color: #121212;
+      --surface-color: #1e1e1e;
+      --text-color: #e0e0e0;
+      --accent-color: #3b82f6;
+      --accent-hover: #2563eb;
+      --border-color: #333;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0;
+      padding: 10px;
+      min-height: 100vh;
+    }
+
+    h2 {
+      margin: 10px 0;
+      font-size: 1.5rem;
+      text-align: center;
+    }
+
+    /* Responsive Stats Panel */
     .stats-panel {
       display: flex;
-      gap: 30px;
+      flex-wrap: wrap; /* Wraps on mobile */
+      justify-content: center;
+      gap: 15px;
       margin-bottom: 15px;
-      background: white;
-      padding: 10px 25px;
-      border-radius: 50px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      font-weight: bold;
-      color: #444;
+      background: var(--surface-color);
+      padding: 10px 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      border: 1px solid var(--border-color);
+      width: 90%;
+      max-width: 600px;
     }
-    .stat-val { color: #007bff; font-size: 1.2em; margin-left: 5px; }
 
-    #container { width: 800px; height: 500px; border: 1px solid #ddd; border-radius: 8px; background-color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-    .controls { margin-top: 20px; display: flex; gap: 10px; }
-    button { padding: 10px 20px; font-size: 16px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 5px; transition: background 0.3s; }
-    button:hover { background-color: #0056b3; }
-    button:disabled { background-color: #ccc; cursor: not-allowed; }
-    #status { margin-top: 15px; font-weight: bold; font-size: 18px; color: #555; height: 30px; }
-    .legend { display: flex; gap: 15px; margin-top: 10px; font-size: 14px; }
-    .dot { width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 5px; }
+    .stat-val {
+      color: var(--accent-color);
+      font-weight: bold;
+      font-size: 1.1em;
+      margin-left: 5px;
+    }
+
+    /* Responsive Graph Container */
+    #container {
+      width: 100%;
+      max-width: 1000px;
+      height: 60vh; /* Takes 60% of screen height */
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      background-color: var(--surface-color);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    }
+
+    #status {
+      margin-top: 15px;
+      font-weight: bold;
+      font-size: 1rem;
+      color: #bbb;
+      height: 40px; /* Fixed height prevents jumping */
+      text-align: center;
+      padding: 0 10px;
+    }
+
+    /* Controls & Legend */
+    .controls {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      justify-content: center;
+    }
+
+    button {
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      background-color: var(--accent-color);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      transition: background 0.2s, transform 0.1s;
+      width: auto;
+    }
+
+    button:hover { background-color: var(--accent-hover); }
+    button:active { transform: scale(0.98); }
+    button:disabled { background-color: #444; color: #888; cursor: not-allowed; }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 15px;
+      margin-top: 15px;
+      font-size: 0.9rem;
+      color: #bbb;
+    }
+
+    .dot { width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-right: 6px; }
   </style>
 </head>
 <body>
 
-  <h2>KernelGreedyMIS Pipeline</h2>
+  <h2>KernelGreedyMIS</h2>
   
   <div class="stats-panel">
-    <span>Graph Size (|V|): <span id="val-size" class="stat-val">0</span></span>
-    <span>Current MIS Size: <span id="val-mis" class="stat-val">0</span></span>
+    <span>Nodes (|V|): <span id="val-size" class="stat-val">0</span></span>
+    <span>MIS Size: <span id="val-mis" class="stat-val">0</span></span>
   </div>
 
-  <div id="status">Ready to start...</div>
-  
   <div id="container"></div>
 
-  <div class="legend">
-    <span><span class="dot" style="background:#d3d3d3;"></span>Unprocessed</span>
-    <span><span class="dot" style="background:#FFD700;"></span>Active (Scanning)</span>
-    <span><span class="dot" style="background:#32CD32;"></span>Selected (In Set)</span>
-    <span><span class="dot" style="background:#FF6347;"></span>Removed (Neighbor)</span>
-  </div>
+  <div id="status">Ready to start...</div>
 
   <div class="controls">
-    <button id="btnStart" onclick="startAnimation()">Start Animation</button>
-    <button id="btnReset" onclick="resetGraph()">Reset</button>
+    <button id="btnStart" onclick="startAnimation()">Start</button>
+    <button id="btnReset" onclick="resetGraph()" style="background-color: #555;">Reset</button>
+  </div>
+
+  <div class="legend">
+    <span><span class="dot" style="background:#444;"></span>Unprocessed</span>
+    <span><span class="dot" style="background:#FFD700;"></span>Scanning</span>
+    <span><span class="dot" style="background:#32CD32;"></span>Selected</span>
+    <span><span class="dot" style="background:#FF6347;"></span>Removed</span>
   </div>
 
 <script>
-  // --- CONFIGURATION ---
+  // --- DARK MODE COLORS ---
   const COLORS = {
-    unprocessed: '#d3d3d3',
-    active: '#FFD700',
-    selected: '#32CD32',
-    removed: '#FF6347',
-    border: '#2B2B2B'
+    unprocessed: '#444444', // Dark Gray
+    active: '#FFD700',      // Gold
+    selected: '#32CD32',    // Lime Green
+    removed: '#FF6347',     // Tomato Red
+    border: '#000000',      // Black borders for contrast
+    text: '#ffffff'         // White Text
   };
 
   const NODES = [
-    { id: 'A', label: 'A' }, // Rule 1
-    { id: 'B', label: 'B' }, { id: 'C', label: 'C' }, { id: 'D', label: 'D' }, { id: 'E', label: 'E' }, // Rule 2
-    { id: 'F', label: 'F' }, { id: 'G', label: 'G' }, { id: 'H', label: 'H' }, { id: 'I', label: 'I' }, // Rule 3
-    { id: 'J', label: 'J' }, { id: 'K', label: 'K' }, { id: 'L', label: 'L' } // Greedy
+    { id: 'A', label: 'A' }, 
+    { id: 'B', label: 'B' }, { id: 'C', label: 'C' }, { id: 'D', label: 'D' }, { id: 'E', label: 'E' },
+    { id: 'F', label: 'F' }, { id: 'G', label: 'G' }, { id: 'H', label: 'H' }, { id: 'I', label: 'I' },
+    { id: 'J', label: 'J' }, { id: 'K', label: 'K' }, { id: 'L', label: 'L' }
   ];
 
   const EDGES = [
-    // Rule 2 Cluster
     { from: 'B', to: 'C' }, { from: 'C', to: 'D' }, { from: 'C', to: 'E' },
-    // Rule 3 Cluster
     { from: 'F', to: 'G' }, { from: 'F', to: 'H' }, { from: 'G', to: 'H' }, { from: 'H', to: 'I' },
-    // Greedy Path
     { from: 'I', to: 'J' }, { from: 'J', to: 'K' }, { from: 'K', to: 'L' }, { from: 'L', to: 'I' }
   ];
 
@@ -89,18 +171,30 @@
   let edgesDataSet = new vis.DataSet(EDGES);
   let misCounter = 0;
 
-  // Initialize Network
   function init() {
     const container = document.getElementById('container');
     const data = { nodes: nodesDataSet, edges: edgesDataSet };
+    
+    // VIS.JS DARK THEME OPTIONS
     const options = {
-      nodes: { shape: 'dot', size: 25, font: { size: 18, color: '#000' }, color: { background: COLORS.unprocessed, border: COLORS.border } },
-      edges: { width: 2, color: '#999' },
-      physics: { enabled: true, stabilization: { iterations: 200 } }
+      nodes: { 
+        shape: 'dot', 
+        size: 25, 
+        font: { size: 16, color: COLORS.text, strokeWidth: 0 }, 
+        color: { background: COLORS.unprocessed, border: COLORS.border, highlight: { border: '#fff' } },
+        borderWidth: 2
+      },
+      edges: { 
+        width: 2, 
+        color: '#666666' // Lighter gray edges for visibility on dark bg
+      },
+      physics: { enabled: true, stabilization: { iterations: 200 } },
+      interaction: { hover: true, zoomView: false } // Disable zoom on mobile to prevent accidents
     };
+    
     network = new vis.Network(container, data, options);
     
-    // Set Initial Stats
+    // Initial Stats
     document.getElementById('val-size').innerText = NODES.length;
     document.getElementById('val-mis').innerText = "0";
   }
@@ -111,51 +205,43 @@
   async function updateNode(id, colorType, message) {
     nodesDataSet.update({ id: id, color: { background: COLORS[colorType] } });
     
-    // Update Stats if a node is selected
     if(colorType === 'selected') {
       misCounter++;
       document.getElementById('val-mis').innerText = misCounter;
     }
 
     if(message) document.getElementById('status').innerText = message;
-    await sleep(1500); 
+    await sleep(1200); // Slightly faster for mobile attention spans
   }
 
   async function startAnimation() {
     document.getElementById('btnStart').disabled = true;
     
-    // --- STAGE 1: KERNELIZATION ---
-    
-    // Rule 1: Degree 0
-    await updateNode('A', 'active', "Stage 1 (Rule 1): Detecting isolated node 'A'");
-    await updateNode('A', 'selected', "Node 'A' added to Independent Set.");
+    // STAGE 1
+    await updateNode('A', 'active', "Stage 1: Scanning isolated node 'A'");
+    await updateNode('A', 'selected', "Node 'A' selected (Rule 1).");
 
-    // Rule 2: Degree 1
-    await updateNode('B', 'active', "Stage 1 (Rule 2): Detecting pendant node 'B'");
-    nodesDataSet.update({ id: 'C', color: { background: COLORS.removed } }); // Remove neighbor
-    await updateNode('B', 'selected', "Selected 'B'. Removed neighbor 'C'.");
+    await updateNode('B', 'active', "Stage 1: Scanning pendant node 'B'");
+    nodesDataSet.update({ id: 'C', color: { background: COLORS.removed } });
+    await updateNode('B', 'selected', "Selected 'B', removed 'C' (Rule 2).");
 
-    // Rule 3: Triangle
-    await updateNode('F', 'active', "Stage 1 (Rule 3): Detecting triangle node 'F'");
+    await updateNode('F', 'active', "Stage 1: Scanning triangle node 'F'");
     nodesDataSet.update([{ id: 'G', color: { background: COLORS.removed } }, { id: 'H', color: { background: COLORS.removed } }]);
-    await updateNode('F', 'selected', "Selected 'F'. Removed neighbors 'G' & 'H'.");
+    await updateNode('F', 'selected', "Selected 'F', removed neighbors (Rule 3).");
 
-    // --- STAGE 2: GREEDY ---
-    document.getElementById('status').innerText = "Stage 2: Switching to Min-Degree Greedy...";
-    await sleep(2000);
+    // STAGE 2
+    document.getElementById('status').innerText = "Stage 2: Switching to Greedy...";
+    await sleep(1500);
 
-    // Remaining isolated nodes from C's removal
-    await updateNode('D', 'selected', "Greedy: 'D' is now isolated. Selected.");
-    await updateNode('E', 'selected', "Greedy: 'E' is now isolated. Selected.");
+    await updateNode('D', 'selected', "Greedy: 'D' is isolated. Selected.");
+    await updateNode('E', 'selected', "Greedy: 'E' is isolated. Selected.");
 
-    // Loop J-K-L-I processing
-    await updateNode('I', 'active', "Greedy: 'I' has min degree in remaining graph.");
+    await updateNode('I', 'active', "Greedy: 'I' has min degree.");
     nodesDataSet.update([{ id: 'J', color: { background: COLORS.removed } }, { id: 'L', color: { background: COLORS.removed } }]);
-    await updateNode('I', 'selected', "Selected 'I'. Removed neighbors 'J' & 'L'.");
+    await updateNode('I', 'selected', "Selected 'I'. Removed neighbors.");
 
-    // Final Node
     await updateNode('K', 'active', "Greedy: Only 'K' remains.");
-    await updateNode('K', 'selected', "Pipeline Complete! Maximum Independent Set Found.");
+    await updateNode('K', 'selected', "Done! Max Independent Set Found.");
     
     document.getElementById('btnStart').disabled = false;
   }
@@ -165,16 +251,12 @@
     edgesDataSet.clear();
     nodesDataSet.add(NODES.map(n => ({...n, color: { background: COLORS.unprocessed }})));
     edgesDataSet.add(EDGES);
-    
-    // Reset Stats
     misCounter = 0;
     document.getElementById('val-mis').innerText = "0";
     document.getElementById('status').innerText = "Ready to start...";
-    
-    network.fit(); // Reset zoom
+    network.fit();
   }
 
-  // Initialize on load
   window.onload = init;
 </script>
 
